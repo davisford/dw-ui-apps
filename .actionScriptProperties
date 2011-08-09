@@ -20,9 +20,8 @@
     <module destPath="modules/Led.swf" optimize="false" sourcePath="src/modules/Led.mxml"/>
     <module destPath="modules/HygroPetalApp.swf" optimize="false" sourcePath="src/modules/HygroPetalApp.mxml"/>
     <module application="src/Main.mxml" destPath="modules/RangeFinderApp.swf" optimize="true" sourcePath="src/modules/RangeFinderApp.mxml"/>
-    <module destPath="modules/IRThermometer.swf" optimize="false" sourcePath="src/modules/IRThermometer.mxml"/>
+    <module application="src/Main.mxml" destPath="modules/IRThermometer.swf" optimize="false" sourcePath="src/modules/IRThermometer.mxml"/>
   </modules>
   <buildCSSFiles/>
   <flashCatalyst validateFlashCatalystCompatibility="false"/>
 </actionScriptProperties>
-
