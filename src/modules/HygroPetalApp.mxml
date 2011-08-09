@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Module xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:swiz="http://swiz.swizframework.org"
+		  backgroundColor="#bdcdf4"
+		  width="100%" height="100%"
+		  creationComplete="creationCompleteHandler(event)"
+		  stateChangeComplete="stateChangeCompleteHandler(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import daisyworks.event.BluetoothTxRxEvent;
+			
+			import modules.shared.TempConverter;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.utils.StringUtil;
+			
+			private var timer:Timer;
+			
+			[Bindable] private var celsius:Boolean = false;
+			
+			[Bindable] private var tempLabel:String = "Temperature (F)";
+			
+			// how often we poll for data
+			private static const INTERVAL:Number=2000;
+			
+			[Bindable]
+			public var ac:ArrayCollection = new ArrayCollection([
+				
+			]);
+			
+			[EventHandler(event="BluetoothTxRxEvent.RX", properties="data")]
+			public function receive(data:String):void {
+
+				// string should look like: 1,{light},{moisture},{temp}
+				if(data == null || data.length == 0) { 
+					error("Received a message from the device but the content was null or empty");
+					return; 
+				}
+				if(data.charAt(0) == "1") {
+					// this is an OK ACK
+					// remove semicolon
+					var str:String = data.replace(";", "");
+					var tokens:Array = str.split(",");
+					if(tokens.length != 4) {
+						error("Got back wrong number of sensor data, expected 4, but was "+tokens.length, data);
+					} else {
+						try {
+							var light:Number = invert(Number(tokens[1]));
+							var moisture:Number = invert(Number(tokens[2]));
+							var temp:Number;
+							if(celsius) {
+								temp = TempConverter.toCelsius(Number(tokens[3]));
+							} else {
+								temp = TempConverter.toFahrenheit(Number(tokens[3]));
+							}
+							var time:String = timeFormatter.format(new Date());
+							
+							var item:Object = { Time:time, Moisture:moisture, Light:light, Temp:temp };
+							
+							// limit the data points to the last 20 so we don't eat up all the memory
+							if(ac.length > 20) {
+								ac.source.shift();
+								ac.addItemAt(item, ac.length);
+							} else {
+								ac.addItem(item);
+							}
+						} catch (e:Error) {
+							error("Could not convert data to numeric "+e.message, data);
+						}
+					}
+				} else {
+					error("Did not get OK ACK back", data);
+				}
+			}
+			
+			/**
+			 * The moisture and light sensors return data in a non-intuitive form where the lower
+			 * values mean more moisture or more light.  So it makes more sense to human, we just
+			 * invert the number so higher numbers mean more light or moisture, and lower numbers
+			 * mean the opposite.  As far as I can tell the range of values is from 0-1023.9999999
+			 */
+			private function invert(val:Number):Number {
+				return 1024 - val;
+			}
+
+			protected function creationCompleteHandler(event:FlexEvent):void
+			{
+				timer=new Timer(INTERVAL, 0);
+				timer.addEventListener("timer", timerHandler);
+			}
+			
+			private function timerHandler(evt:TimerEvent):void {
+				dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.TX, "6;"));				
+			}
+			
+			private function error(msg:String, data:String=null):void {
+				errorLabel.text = "msg" + "," + data;
+			}
+			
+			protected function toggleButton_clickHandler(event:MouseEvent):void
+			{
+				if(currentState == "Stopped")
+					currentState = "Started";
+				else
+					currentState = "Stopped";
+			}
+			
+			protected function clearButton_clickHandler(event:MouseEvent):void
+			{
+				ac = new ArrayCollection();
+			}
+			
+			protected function stateChangeCompleteHandler(event:FlexEvent):void
+			{
+				if(timer == null) { return; }
+				if(currentState == "Started")
+					timer.start();
+				else
+					timer.stop();
+			}
+			
+			private function xAxisLabelFunction(categoryValue:Object, previousCategoryValue:Object, axis:CategoryAxis, categoryItem:Object):String {
+				return "";
+			}
+						
+			protected function tempButton_clickHandler(event:MouseEvent):void {
+				
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					if(celsius) { ac.source[index].Temp = TempConverter.CtoF(item.Temp); }
+					else { ac.source[index].Temp = TempConverter.FtoC(item.Temp); }
+				});
+				tempChart.dataProvider = ac;
+			}
+			
+			protected function celsiusRadio_changeHandler(event:Event):void
+			{
+				tempLabel = "Temperature (C)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Temp = TempConverter.FtoC(item.Temp);
+				});
+				tempChart.dataProvider = ac;
+			}
+			
+			protected function fahrenheitRadio_changeHandler(event:Event):void
+			{
+				tempLabel = "Temperature (F)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Temp = TempConverter.CtoF(item.Temp);
+				});
+				tempChart.dataProvider = ac;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="Stopped" />
+		<s:State name="Started" />
+	</s:states>
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace swiz "http://swiz.swizframework.org";
+				
+		mx|LineChart {
+			fontSize: 20;
+		}
+		
+		#appTitle {
+			fontSize: 25;
+		}
+		
+	</fx:Style>
+	
+	<fx:Declarations>
+		<swiz:Swiz>
+			<swiz:config>
+				<swiz:SwizConfig eventPackages="daisyworks.event.*"
+								 viewPackages="modules.*"/>
+			</swiz:config>
+		</swiz:Swiz>
+		
+		<s:DateTimeFormatter id="timeFormatter" timeStyle="short" dateStyle="none" />
+	</fx:Declarations>
+	<s:Group height="65" width="100%" top="15" left="15" right="15" >
+		<s:layout>
+			<s:HorizontalLayout/>
+		</s:layout>
+		<s:Label id="appTitle" text="Daisy Hygro Petal App" verticalAlign="middle"/>
+		<s:Label id="errorLabel" width="100%" height="100%" paddingBottom="5"
+				 paddingLeft="5" paddingRight="5" paddingTop="5"/>
+		<s:VGroup height="100%" horizontalAlign="left" verticalAlign="middle">
+			<s:RadioButton id="celsiusRadio" selected="@{celsius}" change="celsiusRadio_changeHandler(event)" label="Celsisus" />
+			<s:RadioButton id="fahrenheitRadio" selected="{!celsius}" change="fahrenheitRadio_changeHandler(event)" label="Fahrenheit" />
+		</s:VGroup>
+		<s:VGroup width="94" height="100%" horizontalAlign="right" verticalAlign="middle">
+			<s:ToggleButton id="toggleButton" label.Stopped="Start" label.Started="Stop" click="toggleButton_clickHandler(event)"/>
+			<s:Button id="clearButton" label="Clear" click="clearButton_clickHandler(event)"/>
+		</s:VGroup>
+	</s:Group>
+	<s:Scroller left="15" right="15" top="85" bottom="15">
+		<s:Group>
+			<s:layout>
+				<s:TileLayout horizontalGap="25" verticalGap="25" />
+			</s:layout>
+			
+			<!-- ______________________________ MOISTURE ______________________________ -->
+			<!-- Moisture: 0=dry, 1023=saturated -->
+			<s:HGroup>	
+				<s:Image width="100" height="300" smoothingQuality="high"
+						 smooth="true"
+						 source="@Embed('assets/images/wet-dry-arrow.png')"/>
+				<mx:LineChart id="moistureChart" height="300" dataProvider="{ac}"
+							  showDataTips="true">
+					
+					<!-- _________ MOISTURE Y AXIS _________ -->
+					<mx:verticalAxis>
+						<mx:LinearAxis
+							id="moistureY"
+							title="Moisture"
+							interval="100"
+							displayName="Moisture (0=dry, 1024=saturated)"/>
+					</mx:verticalAxis>
+					
+					<!-- _________ MOISTURE X AXIS _________ -->
+					<mx:horizontalAxis>
+						<mx:CategoryAxis 
+							id="moistureX"
+							title="Time"
+							dataProvider="{ac}" 
+							categoryField="Time"
+							labelFunction="{xAxisLabelFunction}"/>
+					</mx:horizontalAxis>
+					
+					<mx:horizontalAxisRenderers>
+						<mx:AxisRenderer axis="{moistureX}" canDropLabels="true" />
+					</mx:horizontalAxisRenderers>
+					
+					<mx:series>
+						<mx:LineSeries 
+							yField="Moisture" 
+							displayName="Moisture">
+							<mx:lineStroke>
+								<mx:SolidColorStroke color="haloBlue" weight="2" alpha="0.6" />
+							</mx:lineStroke>
+						</mx:LineSeries>
+					</mx:series>
+					
+				</mx:LineChart>
+			</s:HGroup>
+			
+			<!-- _____________________________ LIGHT ____________________________________ -->
+			<!-- Light: 0=dark, 800=light -->
+			<s:HGroup>
+				<s:Image width="100" height="300" smoothingQuality="high"
+						 smooth="true"
+						 source="@Embed('assets/images/dark-light-arrow.png')"/>
+				<mx:LineChart id="lightChart" height="300" dataProvider="{ac}" showDataTips="true">		
+					
+					<!-- _________ LIGHT Y AXIS ________ -->
+					<mx:verticalAxis>
+						<mx:LinearAxis
+							id="lightY"
+							title="Light"
+							interval="100"
+							displayName="Light (0=dark, 1024=brilliant)"/>
+					</mx:verticalAxis>
+					
+					<!-- _________ LIGHT X AXIS ________ -->
+					<mx:horizontalAxis>
+						<mx:CategoryAxis
+							id="lightX"
+							title="Time"
+							dataProvider="{ac}"
+							categoryField="Time" 
+							labelFunction="{xAxisLabelFunction}"/>
+					</mx:horizontalAxis>
+					
+					<mx:horizontalAxisRenderers>
+						<mx:AxisRenderer axis="{lightX}" canDropLabels="true" />
+					</mx:horizontalAxisRenderers>
+					
+					<mx:series>
+						<mx:LineSeries
+							yField="Light"
+							displayName="Light">
+							<mx:lineStroke>
+								<mx:SolidColorStroke color="yellow" weight="2" alpha="0.6" />
+							</mx:lineStroke>
+						</mx:LineSeries>
+					</mx:series>
+					
+				</mx:LineChart>
+			</s:HGroup> 
+			
+			<!-- ____________________________ TEMPERATURE _________________________________ -->
+			
+			<s:HGroup>		
+				<s:Image width="100" height="300" smoothingQuality="high"
+						 smooth="true"
+						 source="@Embed('assets/images/cold-hot-arrow.png')"/>
+				<mx:LineChart id="tempChart" height="300" dataProvider="{ac}" showDataTips="true">	
+					
+					<!-- ________ TEMP Y AXIS ________ -->
+					<mx:verticalAxis>
+						<mx:LinearAxis
+							id="tempY"
+							title="{tempLabel}"
+							interval="100"
+							displayName="{tempLabel}"/>
+					</mx:verticalAxis>
+					
+					<!-- ________ TEMP X AXIS ________ -->
+					<mx:horizontalAxis>
+						<mx:CategoryAxis
+							id="tempX"
+							title="Time"
+							dataProvider="{ac}"
+							categoryField="Time"
+							labelFunction="{xAxisLabelFunction}"/>
+					</mx:horizontalAxis>
+					
+					<mx:horizontalAxisRenderers>
+						<mx:AxisRenderer axis="{tempX}" canDropLabels="true" />
+					</mx:horizontalAxisRenderers>
+					
+					<mx:series>
+						<mx:LineSeries
+							yField="Temp"
+							displayName="Temperature">
+							<mx:lineStroke>
+								<mx:SolidColorStroke color="haloOrange" weight="2" alpha="0.6" />
+							</mx:lineStroke>
+						</mx:LineSeries>
+					</mx:series>
+					
+				</mx:LineChart>
+			</s:HGroup> 
+		</s:Group>	
+	</s:Scroller>
+</s:Module>

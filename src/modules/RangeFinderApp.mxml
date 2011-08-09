@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Module xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:swiz="http://swiz.swizframework.org"
+		  backgroundColor="#bdcdf4"
+		  width="100%" height="100%"
+		  creationComplete="creationCompleteHandler(event)"
+		  stateChangeComplete="stateChangeCompleteHandler(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import daisyworks.event.BluetoothTxRxEvent;
+			
+			import modules.shared.TempConverter;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.utils.StringUtil;
+			
+			private var timer:Timer;
+			
+			[Bindable] private var metric:Boolean = false;
+			
+			[Bindable] private var distanceLabel:String = "Distance (in)";
+			
+			[Bindable] private var interval:Number = 500;
+						
+			[Bindable]
+			public var ac:ArrayCollection = new ArrayCollection([
+				
+			]);
+			
+			[EventHandler(event="BluetoothTxRxEvent.RX", properties="data")]
+			public function receive(data:String):void {
+				if(data == null || data.length == 0) {
+					error("Received a message from the device but the content was null or empty");
+					return;
+				}
+				if(data.charAt(0) == "1") {
+					try {
+						// this is an OK ACK
+						// remove semicolon
+						var str:String = data.replace(";", "");
+						var tokens:Array = str.split(",");
+						if(tokens.length != 2) {
+							error("Got back wrong number of sensor data, expected 2, but was "+tokens.length, data);
+						} else {
+							var distance:Number;
+							
+							if(metric) {
+								distance = toMetric(Number(tokens[1]));
+							} else {
+								distance = Number(tokens[1]);
+							}
+							var time:String = timeFormatter.format(new Date());
+							var item:Object = {Time:time, Distance:distance };
+							// limit the data points to the last 20 so we don't eat up all the memory
+							if(ac.length > 40) {
+								ac.source.shift();
+								ac.addItemAt(item, ac.length);
+							} else {
+								ac.addItem(item);
+							}
+						}
+					} catch(e:Error) {
+						error("Could not convert last data point", data);
+					}		
+				} else {
+					error("Did not get OK ACK back", data);
+				}
+				
+			}
+			
+			private function toMetric(val:Number):Number {
+				return val * 2.54;
+			}
+			
+			private function toEnglish(val:Number):Number {
+				return val / 2.54;
+			}
+						
+			protected function creationCompleteHandler(event:FlexEvent):void
+			{
+				timer=new Timer(interval, 0);
+				timer.addEventListener("timer", timerHandler);
+			}
+			
+			private function timerHandler(evt:TimerEvent):void {
+				dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.TX, "4;"));				
+			}
+			
+			private function error(msg:String, data:String=null):void {
+				errorLabel.text = "msg" + "," + data;
+			}
+			
+			protected function toggleButton_clickHandler(event:MouseEvent):void
+			{
+				if(currentState == "Stopped") {
+					currentState = "Started";
+					timer.start();
+				}
+				else {
+					currentState = "Stopped";
+					timer.stop();	
+				}
+			}
+			
+			protected function clearButton_clickHandler(event:MouseEvent):void
+			{
+				ac = new ArrayCollection();
+			}
+			
+			protected function stateChangeCompleteHandler(event:FlexEvent):void
+			{
+				if(timer == null) { return; }
+				if(currentState == "Started")
+					dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.TX, "4;"));
+				else
+					dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.TX, "5;"));
+			}
+			
+			private function xAxisLabelFunction(categoryValue:Object, previousCategoryValue:Object, axis:CategoryAxis, categoryItem:Object):String {
+				return "";
+			}
+			
+			protected function tempButton_clickHandler(event:MouseEvent):void {
+				
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					if(metric) { ac.source[index].Temp = TempConverter.CtoF(item.Temp); }
+					else { ac.source[index].Temp = TempConverter.FtoC(item.Temp); }
+				});
+				distanceChart.dataProvider = ac;
+			}
+			
+			protected function metricRadio_changeHandler(event:Event):void
+			{
+				distanceLabel = "Distance (cm)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Distance = toMetric(item.Distance);
+				});
+				distanceChart.dataProvider = ac;
+			}
+			
+			protected function englishRadio_changeHandler(event:Event):void
+			{
+				distanceLabel = "Distance (in)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Distance = toEnglish(item.Distance);
+				});
+				distanceChart.dataProvider = ac;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="Stopped" />
+		<s:State name="Started" />
+	</s:states>
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace swiz "http://swiz.swizframework.org";
+		
+		mx|ColumnChart {
+			fontSize: 20;
+		}
+		
+		#appTitle {
+			fontSize: 25;
+		}
+		
+	</fx:Style>
+	
+	<fx:Declarations>
+		<swiz:Swiz>
+			<swiz:config>
+				<swiz:SwizConfig eventPackages="daisyworks.event.*"
+								 viewPackages="modules.*"/>
+			</swiz:config>
+		</swiz:Swiz>
+		
+		<s:DateTimeFormatter id="timeFormatter" dateStyle="none" />
+	</fx:Declarations>
+	<s:Group height="65" width="100%" top="15" left="15" right="15" >
+		<s:layout>
+			<s:HorizontalLayout/>
+		</s:layout>
+		<s:Label id="appTitle" text="Daisy Ultrasonic Range App" verticalAlign="middle"/>
+		<s:Label id="errorLabel" width="100%" height="100%" paddingBottom="5"
+				 paddingLeft="5" paddingRight="5" paddingTop="5"/>
+		<s:VGroup height="100%" horizontalAlign="left" verticalAlign="middle">
+			<s:RadioButton id="metricRadio" selected="@{metric}" change="metricRadio_changeHandler(event)" label="Metric" />
+			<s:RadioButton id="englishRadio" selected="{!metric}" change="englishRadio_changeHandler(event)" label="English" />
+		</s:VGroup>
+		<s:VGroup width="94" height="100%" horizontalAlign="right" verticalAlign="middle">
+			<s:ToggleButton id="toggleButton" label.Stopped="Start" label.Started="Stop" click="toggleButton_clickHandler(event)"/>
+			<s:Button id="clearButton" label="Clear" click="clearButton_clickHandler(event)"/>
+		</s:VGroup>
+	</s:Group>
+	<s:Scroller left="15" right="15" top="85" bottom="15">
+		<s:Group width.Stopped="100%">
+			<s:layout>
+				<s:VerticalLayout />
+			</s:layout>
+						
+			<!-- ____________________________ DISTANCE _________________________________ -->
+			
+			<s:HGroup width="100%">		
+				<mx:ColumnChart id="distanceChart" height="300" width="100%" dataProvider="{ac}" showDataTips="true">	
+					
+					<!-- ________ Y AXIS ________ -->
+					<mx:verticalAxis>
+						<mx:LinearAxis
+							id="tempY"
+							title="{distanceLabel}"
+							interval="5"
+							minimum="0"
+							displayName="{distanceLabel}"/>
+					</mx:verticalAxis>
+					
+					<!-- ________ X AXIS ________ -->
+					<mx:horizontalAxis>
+						<mx:CategoryAxis
+							id="tempX"
+							title="Time"
+							dataProvider="{ac}"
+							categoryField="Time"
+							labelFunction="{xAxisLabelFunction}"/>
+					</mx:horizontalAxis>
+					
+					<mx:horizontalAxisRenderers>
+						<mx:AxisRenderer axis="{tempX}" canDropLabels="true" />
+					</mx:horizontalAxisRenderers>
+					
+					<mx:series>
+						<mx:ColumnSeries
+							yField="Distance"
+							displayName="Distance">
+							
+						</mx:ColumnSeries>
+					</mx:series>
+					
+				</mx:ColumnChart>
+			</s:HGroup> 
+		</s:Group>	
+	</s:Scroller>
+</s:Module>

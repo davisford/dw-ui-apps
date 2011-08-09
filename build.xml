@@ -1,0 +1,45 @@
+<project name="Test" basedir="." default="build-modules">
+
+	<property file="build.properties" />
+	<property name="module.dir" value="${SRC_DIR}/modules/" />
+	<property name="moduleDir" value="${SRC_DIR}/modules/" />
+	<property name="moduledir" value="${SRC_DIR}/modules/" />
+	
+	<taskdef resource="flexTasks.tasks" classpath="${FLEX_HOME}/ant/lib/flexTasks.jar" />
+	
+	<target name="properties">
+		<fail unless="mxmlc">The "mxmlc" property must be set in build.properties.</fail>
+	</target>
+
+	<target name="build-modules" description="Build Modules">
+	    <build.module dir="${module.dir}" file="Led"/>
+	</target>
+
+	<macrodef name="build.module">
+		<attribute name="dir" />
+		<attribute name="file" />
+		<sequential>
+			<echo>@{file}</echo>
+			<mxmlc 
+				file="@{dir}/@{file}.mxml" 
+				keep-generated-actionscript="true"
+				output='bin-debug/ui.swf' 
+				optimize="true" 
+				debug="false" 
+				incremental="false" 
+				link-report="bin-debug/link-report.xml"
+				static-link-runtime-shared-libraries="true"
+				fork="true" >
+				<compiler.source-path path-element="${SRC_DIR}" />
+				<source-path path-element="${FLEX_HOME}/frameworks" />
+				<compiler.library-path dir="${FLEX_HOME}/frameworks" append="true">
+					<include name="libs" />
+				</compiler.library-path>
+				<source-path path-element="${SRC_DIR}" />
+				<compiler.library-path dir="${LIBS_DIR}/" append="true">
+					<include name="*" />
+				</compiler.library-path>
+			</mxmlc>
+		</sequential>
+	</macrodef>
+</project>
