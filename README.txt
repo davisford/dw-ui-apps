@@ -3,11 +3,11 @@ DaisyWorks User Interface App repository
 --------------------------------
 This is the repo for various UI Modules for the Daisy.  The Daisy is an Arduino-derivative board that includes:
 
-a) Class 1 Bluetooth Modem
-b) SD Card
-c) IrDA
-d) 3 RJ25, and 1 RJ45 jacks that allow you to easily swap out various sensors and controls (e.g. light, moisture, temp, etc.)
-e) Servo control ports
+* Class 1 Bluetooth Modem
+* SD Card
+* IrDA TX/RX
+* Telco RJ Jacks that allow you to quickly plug-in various sensors and controls
+* Servo control ports
 
 The Daisy uses the Atmel ATMEGA328 microcontroller.  It is compatible with the Arduino, which means you can use Arduino libraries to build firmware for the Daisy (in fact, we do).  It als has the Arduino stk500 bootloader, and we've built software that allows you to do Firmware-Over-The-Air (FOTA) to reprogram the Daisy using Bluetooth from your Android phone or Desktop Computer (Mac / Windows / Linux).
 
@@ -16,6 +16,8 @@ We've also built an App Store that allows you to quickly browse applications tha
 http://daisyworks.com
 
 This repository has all the source code we are using in our sample user interface applications.  Instructions are on the website and simple instructions are provided below on how to get started.  Each of these apps is a Flex Module that can be dynamically loaded into our Air Desktop application and communicate with the embedded firmware running on a Daisy.
+
+http://daisyworks.com/docs.html#tutorials
 
 Developing an Application means you develop a short piece of Arduino firmware that runs on the device and does interesting things with sensors / controls -- and then you build a small user-interface component in Flex that allows you to interact with the device real-time.
 
@@ -36,6 +38,9 @@ You need all the stuff below before you try to begin:
 
   # ant 1.7 or better
 	http://ant.apache.org
+
+  # ant-contrib tasks - put the .jar into your ant lib folder
+	http://ant-contrib.sourceforge.net/
 
   # Flex 4.5.* SDK (you need at least 4.5.0.20967 or better)
 	http://fpdownload.adobe.com/pub/flex/sdk/builds/flex4.5/flex_sdk_4.5.0.20967.zip

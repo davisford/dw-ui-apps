@@ -13,6 +13,7 @@
 			import daisyworks.event.BluetoothTxRxEvent;
 			
 			import modules.shared.TempConverter;
+			import modules.shared.Icons;
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
@@ -215,7 +216,7 @@
 			<s:HGroup>	
 				<s:Image width="100" height="300" smoothingQuality="high"
 						 smooth="true"
-						 source="@Embed('assets/images/wet-dry-arrow.png')"/>
+						 source="{Icons.WET_DRY}"/>
 				<mx:LineChart id="moistureChart" height="300" dataProvider="{ac}"
 							  showDataTips="true">
 					
@@ -260,7 +261,7 @@
 			<s:HGroup>
 				<s:Image width="100" height="300" smoothingQuality="high"
 						 smooth="true"
-						 source="@Embed('assets/images/dark-light-arrow.png')"/>
+						 source="{Icons.DARK_LIGHT}"/>
 				<mx:LineChart id="lightChart" height="300" dataProvider="{ac}" showDataTips="true">		
 					
 					<!-- _________ LIGHT Y AXIS ________ -->
@@ -304,7 +305,7 @@
 			<s:HGroup>		
 				<s:Image width="100" height="300" smoothingQuality="high"
 						 smooth="true"
-						 source="@Embed('assets/images/cold-hot-arrow.png')"/>
+						 source="{Icons.COLD_HOT}"/>
 				<mx:LineChart id="tempChart" height="300" dataProvider="{ac}" showDataTips="true">	
 					
 					<!-- ________ TEMP Y AXIS ________ -->
