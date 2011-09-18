@@ -1,22 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
-<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009"
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009"
 			   xmlns:s="library://ns.adobe.com/flex/spark"
 			   xmlns:mx="library://ns.adobe.com/flex/mx"
+			   xmlns:swiz="http://swiz.swizframework.org"
 			   width="100%" height="100%" minWidth="955" minHeight="600"
-			   creationComplete="application1_creationCompleteHandler(event)"
-			   >
+			   creationComplete="creationCompleteHandler(event)">
 	<s:layout>
 		<s:BasicLayout/>
 	</s:layout>
 	<fx:Style source="Main.css"/>
 	
+	<fx:Declarations>
+		<swiz:Swiz>
+			<swiz:config>
+				<swiz:SwizConfig eventPackages="daisyworks.event.*"
+								 viewPackages="modules.*"/>
+			</swiz:config>
+		</swiz:Swiz>
+	</fx:Declarations>
+	
 	<fx:Script>
 		<![CDATA[
+			import daisyworks.event.BluetoothTxRxEvent;
+			
+			import mx.collections.ArrayCollection;
 			import mx.events.FlexEvent;
 			
-			protected function application1_creationCompleteHandler(event:FlexEvent):void
+			private var ac:ArrayCollection = new ArrayCollection([
+				"29:0E:2F:2F:03:00:00:94",
+				"43:0E:2F:2F:03:00:00:94",
+				"30:0E:2F:2F:03:00:00:94",
+				"42:0E:2F:2F:03:00:00:94",
+				"31:0E:2F:2F:03:00:00:94",
+				"40:0E:2F:2F:03:00:00:94",
+				"33:0E:2F:2F:03:00:00:94",
+				"38:0E:2F:2F:03:00:00:94",
+				"34:0E:2F:2F:03:00:00:94",
+				"37:0E:2F:2F:03:00:00:94",
+				"35:0E:2F:2F:03:00:00:94",
+				"36:0E:2F:2F:03:00:00:94"]);
+			
+			protected function creationCompleteHandler(event:FlexEvent):void
 			{
-				
+				dispatchEvents();
+				var timer:Timer = new Timer(5000);
+				timer.addEventListener(TimerEvent.TIMER, function(evt:TimerEvent):void {
+					dispatchEvents();
+				});
+				timer.start(); 
+			}
+			
+			private var min:Number = -55;
+			private var max:Number = 155;
+			
+			private function dispatchEvents():void {
+				for each(var s:String in ac) {
+					dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.RX, generateRandomValue(s)) );
+				}
+			}
+			
+			private function generateRandomValue(addr:String):String {
+				var num:Number = Math.floor(Math.random()* max) + min;
+				return "1,"+addr+","+num.toString()+";";
 			}
 			
 		]]>
@@ -26,6 +71,5 @@
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
 	
-	<s:ModuleLoader left="15" right="15" top="15" bottom="15" label="Tab One"
-					url="modules/RangeFinderApp.swf"/>
-</s:Application>
+	<s:ModuleLoader left="15" right="15" top="15" bottom="15" label="Module" url="modules/DigitalTemp.swf"/>
+</s:WindowedApplication>

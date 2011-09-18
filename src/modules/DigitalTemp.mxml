@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Module xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  xmlns:swiz="http://swiz.swizframework.org"
+		  backgroundColor="#bdcdf4"
+		  width="100%" height="100%"
+		  creationComplete="creationCompleteHandler(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import daisyworks.event.BluetoothTxRxEvent;
+			
+			import modules.shared.Icons;
+			import modules.shared.TempConverter;
+			
+			import mx.charts.ChartItem;
+			import mx.charts.HitData;
+			import mx.charts.chartClasses.AxisBase;
+			import mx.charts.chartClasses.Series;
+			import mx.charts.series.LineSeries;
+			import mx.charts.series.items.BarSeriesItem;
+			import mx.charts.series.items.ColumnSeriesItem;
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.graphics.Stroke;
+			import mx.utils.StringUtil;
+			
+			private var timer:Timer;
+			
+			private var file:File = File.documentsDirectory;
+			private var fileStream:FileStream;
+			
+			
+			[Bindable] private var celsius:Boolean = true;
+			
+			[Bindable] private var tempLabel:String = "Temperature (C)";
+			
+			[Bindable] private var stepperValue:Number = 5;
+						
+			[Bindable] private var loColor:uint 	= 16737792;
+			[Bindable] private var curColor:uint 	= 13369344;
+			[Bindable] private var hiColor:uint 	= 6750156;
+			[Bindable] private var loWeight:Number 	= 7;
+			[Bindable] private var curWeight:Number = 7;
+			[Bindable] private var hiWeight:Number 	= 7;
+			[Bindable] private var loAlpha:Number 	= 0.3;
+			[Bindable] private var curAlpha:Number 	= 0.9;
+			[Bindable] private var hiAlpha:Number 	= 0.3;
+			
+			[Bindable]
+			public var ac:ArrayCollection = new ArrayCollection([
+				
+			]);
+			
+			// sensor range is -55C to 125C, -67F to 257F
+			private static const MIN_C:Number = -55;
+			private static const MAX_C:Number = 125;
+			private static const MIN_F:Number = -67;
+			private static const MAX_F:Number = 257;
+			
+			[Bindable] private var minTemp:Number = MIN_C;
+			[Bindable] private var maxTemp:Number = MAX_C;
+			
+			[EventHandler(event="BluetoothTxRxEvent.RX", properties="data")]
+			public function receive(data:String):void {
+						
+				// string should look like: 1,{address},{temp};
+				if(data == null || data.length == 0) { 
+					error("Received a message from the device but the content was null or empty");
+					return; 
+				}
+				if(data.charAt(0) == "1") {
+					// this is an OK ACK
+					// remove semicolon
+					var str:String = data.replace(";", "");
+					var tokens:Array = str.split(",");
+					if(tokens.length != 3) {
+						error("Got back wrong number of sensor data, expected 3, but was "+tokens.length, data);
+					} else {
+						try {
+							var address:String = tokens[1];
+							var temp:Number;
+							if(celsius) {
+								temp = Number(tokens[2]);
+							} else {
+								temp = TempConverter.CtoF(Number(tokens[2]));
+							}
+							var time:String = timeFormatter.format(new Date());							
+							addItem(address, time, temp);
+							logItem(address, time, temp);
+						} catch (e:Error) {
+							error("Could not convert data to numeric "+e.message, data);
+						}
+					}
+				} else {
+					error("Did not get OK ACK back", data);
+				}
+			}
+			
+			private function addItem(address:String, time:String, temp:Number):void {
+				var existing:Object;
+				var idx:Number;
+				for each(var i:Object in ac) {
+					if(address == i.Address) {
+						existing = i;
+						idx = ac.getItemIndex(i);
+						break;
+					}
+				}
+				if(existing) {
+					if(existing.Lo > temp) { existing.Lo = temp; }
+					if(existing.Hi < temp) { existing.Hi = temp; }
+					existing.Temp = temp;
+					ac.setItemAt(existing, idx);
+				} else {
+					ac.addItem( { Time:time, Address:address, Lo:temp, Temp:temp, Hi:temp } );
+				}
+				timeLabel.text = "Last Sample @ "+time;
+			}
+			
+			private function logItem(address:String, time:String, temp:Number):void {
+				if(fileStream == null) { return; }
+				var data:String = address+","+time+","+temp+","+(celsius==true?"C":"F")+File.lineEnding;
+				fileStream.open(file, FileMode.APPEND);
+				fileStream.writeUTFBytes(data);
+				fileStream.close();
+			}
+						
+			protected function creationCompleteHandler(event:FlexEvent):void
+			{
+				callLater(function():void {
+					currentSeries.setStyle("labelPosition", "inside");
+				});
+			}
+			
+			private function error(msg:String, data:String=null):void {
+				errorLabel.text = "msg" + "," + data;
+			}
+												
+			protected function celsiusRadio_changeHandler(event:Event):void
+			{
+				tempLabel = "Temperature (C)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Temp = TempConverter.FtoC(item.Temp);
+					ac.source[index].Lo = TempConverter.FtoC(item.Lo);
+					ac.source[index].Hi = TempConverter.FtoC(item.Hi);
+				});
+				tempChart.dataProvider = ac;
+				minTemp = MIN_C;
+				maxTemp = MAX_C;
+			}
+			
+			protected function fahrenheitRadio_changeHandler(event:Event):void
+			{
+				tempLabel = "Temperature (F)";
+				ac.source.forEach(function(item:*, index:int, array:Array):void {
+					ac.source[index].Temp = TempConverter.CtoF(item.Temp);
+					ac.source[index].Lo = TempConverter.CtoF(item.Lo);
+					ac.source[index].Hi = TempConverter.CtoF(item.Hi);
+				});
+				tempChart.dataProvider = ac;
+				minTemp = MIN_F;
+				maxTemp = MAX_F;
+			}
+			
+			private function labelFunc(element:ChartItem, series:Series):String {
+				// Get a refereence to the current data element.
+				var data:BarSeriesItem = BarSeriesItem(element);        
+				
+				// Get a reference to the current series.        
+				var currentSeries:BarSeries = BarSeries(series);
+				
+				// Create a return String and format the number.
+				return data.xNumber + (celsius == true ? "C" : "F");    
+			}    
+			
+			public function myDataTipFunction(e:HitData):String {
+				var s:String = BarSeries(e.element).displayName;
+				switch(s) {
+					case "Lo":
+						s = s + ": "+e.item.Lo + (celsius == true ? " C" : " F");
+						break;
+					case "Current":
+						s = s + ": "+e.item.Temp + (celsius == true ? " C" : " F");
+						break;
+					case "Hi":
+						s = s + ": "+ e.item.Hi + (celsius == true ? " C" : " F");
+						break;
+					default:
+						s = s + ": unknown";
+						break;
+				}
+				return s;
+			}
+						
+			protected function saveButton_clickHandler(event:MouseEvent):void
+			{
+				if(fileStream != null) { fileStream.close(); fileStream=null; }
+				
+				var f:File = File.documentsDirectory;
+				f.addEventListener(Event.SELECT,function(evt:Event):void {
+					file = File(evt.target);
+					fileStream = new FileStream();
+					fileLabel.text = "Saving to "+file.url;
+				});
+				f.browseForSave("Save as (.CSV)");
+			}
+			
+			protected function intervalStepper_valueCommitHandler(event:FlexEvent):void
+			{
+				dispatchEvent(new BluetoothTxRxEvent(BluetoothTxRxEvent.TX, String(intervalStepper.value * 1000)));
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="Stopped" />
+		<s:State name="Started" />
+	</s:states>
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace swiz "http://swiz.swizframework.org";
+		
+		mx|BarChart {
+			fontSize: 20;
+		}
+		
+		.tempLabel {
+			labelPosition:inside;
+			
+		}
+		
+		#appTitle {
+			fontSize: 25;
+		}
+		
+	</fx:Style>
+	
+	<fx:Declarations>
+		<swiz:Swiz>
+			<swiz:config>
+				<swiz:SwizConfig eventPackages="daisyworks.event.*"
+								 viewPackages="modules.*"/>
+			</swiz:config>
+		</swiz:Swiz>
+		<fx:Array id="bge">
+			<mx:GridLines gridDirection="both"/>
+		</fx:Array>
+		<s:DateTimeFormatter id="timeFormatter" timeStyle="long" dateStyle="none" />
+	</fx:Declarations>
+	
+	
+	<s:Group left="15" right="15" top="15" width="100%" height="85">
+		<s:layout>
+			<s:VerticalLayout/>
+		</s:layout>
+		<s:Group width="100%" height="100%">
+			<s:layout>
+				<s:HorizontalLayout gap="25"/>
+			</s:layout>
+			<s:Label id="appTitle" verticalAlign="middle"
+					 width="100%" height="100%"
+					 text="Daisy Digital Temp Monitor"/>
+			
+			<s:VGroup height="100%" horizontalAlign="left" verticalAlign="middle">
+				<s:Button id="saveButton" height="100%" label="Save As..." click="saveButton_clickHandler(event)" />
+				<s:Label id="fileLabel" text="No File Chosen" />
+			</s:VGroup>			
+			
+			<s:VGroup height="100%" horizontalAlign="left" verticalAlign="middle">
+				<s:Label height="100%" text="Interval (s)"
+						 verticalAlign="middle"/>
+				<s:NumericStepper id="intervalStepper" height="100%" maximum="86400"
+								  minimum="2" stepSize="1" value="{stepperValue}"
+								  valueCommit="intervalStepper_valueCommitHandler(event)"/>
+			</s:VGroup>
+			
+			<s:VGroup height="100%" horizontalAlign="left" verticalAlign="middle">
+				<s:RadioButton id="celsiusRadio" selected="@{celsius}" change="celsiusRadio_changeHandler(event)" label="Celsisus" />
+				<s:RadioButton id="fahrenheitRadio" selected="{!celsius}" change="fahrenheitRadio_changeHandler(event)" label="Fahrenheit" />
+			</s:VGroup>
+			
+		</s:Group>
+		<s:Group width="100%" height="100%">
+			<s:layout>
+				<s:HorizontalLayout />
+			</s:layout>
+			<s:Label id="timeLabel" width="100%" height="100%" color="#F98F05" fontWeight="bold"
+					 paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5"
+					 text="Last Sample @" verticalAlign="middle"
+					 color.Stopped="#0E8111" fontSize.Stopped="18" fontStyle.Stopped="italic"
+					 fontWeight.Stopped="normal" textDecoration.Stopped="none"/>
+			<s:Label id="errorLabel" width="100%" height="100%" paddingBottom="5" paddingLeft="5"
+					 paddingRight="5" paddingTop="5"
+					 verticalAlign="middle"/>
+		</s:Group>
+		
+	</s:Group>
+	<s:Scroller left="15" right="15" top="105" bottom="15">
+		<s:Group width="100%" height="100%">
+
+			<s:layout>
+				<s:HorizontalLayout/>
+			</s:layout>
+			
+			<!-- ____________________________ TEMPERATURE _________________________________ -->
+			
+			<s:HGroup width="100%" height="100%" verticalAlign="middle">		
+				<mx:BarChart id="tempChart" showDataTips="true" dataProvider="{ac}"
+							  width="100%" height="100%" dataTipMode="multiple" 
+							  backgroundElements="{bge}"
+							  mouseSensitivity="50" 
+							  dataTipFunction="myDataTipFunction">	
+					
+					<!-- ________ TEMP Y AXIS ________ -->
+					<mx:verticalAxis>
+						<mx:CategoryAxis dataProvider="{ac}" displayName="Address"
+										 categoryField="Address"/>
+					</mx:verticalAxis>
+					<mx:horizontalAxis>
+						<mx:LinearAxis
+							id="tempX"
+							title="{tempLabel}"
+							interval="20"
+							minimum="{minTemp}"
+							maximum="{maxTemp}"
+							displayName="{tempLabel}"/>
+					</mx:horizontalAxis>
+										
+					<mx:series>
+						<mx:BarSet type="overlaid" displayName="Current" >
+							<mx:BarSeries id="loSeries" minField="Lo" xField="Lo" yField="Address" displayName="Lo" labelFunction="labelFunc" >
+								<mx:stroke>
+									<mx:SolidColorStroke 
+										color="{loColor}" 
+										weight="{loWeight}" alpha="{loAlpha}"/>
+								</mx:stroke>
+							</mx:BarSeries>
+							<mx:BarSeries id="currentSeries" minField="Lo"  xField="Temp" yField="Address" displayName="Current" labelFunction="labelFunc">
+								<mx:stroke>
+									<mx:SolidColorStroke 
+										color="{curColor}" 
+										weight="{curWeight}" alpha="{curAlpha}" />
+								</mx:stroke>
+							</mx:BarSeries>
+							<mx:BarSeries id="hiSeries" minField="Lo" xField="Hi" yField="Address" displayName="Hi" labelFunction="labelFunc">
+								<mx:stroke>
+									<mx:SolidColorStroke 
+										color="{hiColor}" 
+										weight="{hiWeight}" alpha="{hiAlpha}"/>
+								</mx:stroke>
+							</mx:BarSeries>
+						</mx:BarSet>
+					</mx:series>
+					
+				</mx:BarChart>
+			</s:HGroup> 
+			<mx:Legend dataProvider="{tempChart}"/>
+			
+<!--			<s:VGroup>
+				<s:Label text="loColor {loColor}"/>
+				<mx:ColorPicker selectedColor="@{loColor}" change="trace(loColor); tempChart.invalidateSeriesStyles()" />
+				<s:Label text="curColor {curColor}"/>
+				<mx:ColorPicker selectedColor="@{curColor}" change="trace(curColor); tempChart.invalidateSeriesStyles()" />
+				<s:Label text="hiColor {hiColor}"/>
+				<mx:ColorPicker selectedColor="@{hiColor}" change="trace(hiColor); tempChart.invalidateSeriesStyles()" />
+				
+				<s:Label text="loWeight"/>
+				<s:NumericStepper value="@{loWeight}" change="trace(loWeight); tempChart.invalidateSeriesStyles()" />
+				<s:Label text="curWeight"/>
+				<s:NumericStepper value="@{curWeight}" change="trace(curWeight); tempChart.invalidateSeriesStyles()" />
+				<s:Label text="hiWeight"/>
+				<s:NumericStepper value="@{hiWeight}" change="trace(hiWeight); tempChart.invalidateSeriesStyles()" />
+				
+				<s:Label text="loAlpha"/>
+				<s:NumericStepper value="@{loAlpha}" change="trace(loAlpha); tempChart.invalidateSeriesStyles()" stepSize="0.1" />
+				<s:Label text="curAlpha"/>
+				<s:NumericStepper value="@{curAlpha}" change="trace(curAlpha); tempChart.invalidateSeriesStyles()" stepSize="0.1" />
+				<s:Label text="hiAlpha"/>
+				<s:NumericStepper value="@{hiAlpha}" change="trace(hiAlpha); tempChart.invalidateSeriesStyles()" stepSize="0.1" />
+				
+			</s:VGroup>-->
+		</s:Group>	
+	</s:Scroller>
+</s:Module>

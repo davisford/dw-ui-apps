@@ -16,6 +16,10 @@ package modules.shared
 		[Bindable]
 		public static var DARK_LIGHT:Class;
 		
+		[Embed(source="../../assets/images/outlet.jpg")]
+		[Bindable]
+		public static var OUTLET:Class;
+		
 		
 	}
 }

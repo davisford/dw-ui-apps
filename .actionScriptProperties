@@ -14,14 +14,26 @@
     <sourceAttachmentPath/>
   </compiler>
   <applications>
-    <application path="Main.mxml"/>
+    <application path="Main.mxml">
+      <airExcludes/>
+    </application>
   </applications>
   <modules>
     <module destPath="modules/Led.swf" optimize="false" sourcePath="src/modules/Led.mxml"/>
     <module destPath="modules/HygroPetalApp.swf" optimize="false" sourcePath="src/modules/HygroPetalApp.mxml"/>
     <module application="src/Main.mxml" destPath="modules/RangeFinderApp.swf" optimize="true" sourcePath="src/modules/RangeFinderApp.mxml"/>
     <module application="src/Main.mxml" destPath="modules/IRThermometer.swf" optimize="false" sourcePath="src/modules/IRThermometer.mxml"/>
+    <module application="src/Main.mxml" destPath="modules/PowerOutletApp.swf" optimize="true" sourcePath="src/modules/PowerOutletApp.mxml"/>
+    <module application="src/Main.mxml" destPath="modules/DigitalTemp.swf" optimize="true" sourcePath="src/modules/DigitalTemp.mxml"/>
   </modules>
   <buildCSSFiles/>
   <flashCatalyst validateFlashCatalystCompatibility="false"/>
+  <buildTargets>
+    <buildTarget buildTargetName="default">
+      <airSettings airCertificatePath="" airTimestamp="true" version="1">
+        <airExcludes/>
+      </airSettings>
+      <actionScriptSettings version="1"/>
+    </buildTarget>
+  </buildTargets>
 </actionScriptProperties>

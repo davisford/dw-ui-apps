@@ -126,11 +126,11 @@ package modules.shared
 		}
 		
 		public static function CtoF(val:Number):Number {
-			return ((val * 9) / 5 ) + 32;
+			return Number((((val * 9) / 5 ) + 32).toFixed(3));
 		}
 		
 		public static function FtoC(val:Number):Number {
-			return ((val - 32) * 5 ) / 9;
+			return Number((((val - 32) * 5 ) / 9).toFixed(3));
 		}
 	}
 }
